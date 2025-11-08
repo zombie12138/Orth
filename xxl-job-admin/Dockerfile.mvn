@@ -1,3 +1,22 @@
+# ========= Build Stage: Using Maven + Temurin JDK =========
+FROM eclipse-temurin:17-jdk-jammy AS build
+
+# Install build dependencies (git, maven-wrapper compatible)
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive \
+    apt-get install -y --no-install-recommends git maven ca-certificates && \
+    rm -rf /var/lib/apt/lists/*
+
+WORKDIR /src
+
+# Copy all directories; the working directory must be the outermost layer
+COPY . .
+
+# If you need to build, checkout and run mvn; otherwise, skip
+# Current dependencies have issues, full build is required
+# RUN mvn -B -DskipTests -pl xxl-job-admin -am package
+RUN mvn -B -DskipTests -am package
+
+
 # ========= Runtime Stage: Minimal JRE + tini =========
 FROM eclipse-temurin:17-jre-jammy
 # FROM openjdk:21-jdk-slim
@@ -7,9 +26,9 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive \
     apt-get install -y --no-install-recommends tini wget curl bash && \
     rm -rf /var/lib/apt/lists/*
 
-# Copy the JAR file
+# Copy the JAR
 WORKDIR /app
-COPY xxl-job-admin/target/*.jar /app/xxl-job-admin.jar
+COPY --from=build /src/xxl-job-admin/target/*.jar /app/xxl-job-admin.jar
 
 # Create log directories (including GC logs)
 RUN mkdir -p /data/applogs /data/gclogs && chmod -R 777 /data
@@ -17,9 +36,8 @@ RUN mkdir -p /data/applogs /data/gclogs && chmod -R 777 /data
 # JVM tuning
 # G1GC, MaxRAMPercentage (Xmx ratio),
 # InitialRAMPercentage (Xms ratio),
-# MinRAMPercentage (used for small-memory Xmx),
-# G1: string deduplication,
-# TieredStopAtLevel: C1 JIT,
+# G1: string deduplication
+# TieredStopAtLevel: C1 JIT
 # OOM Exit
 ENV JAVA_TOOL_OPTIONS="\
     -XX:+UseG1GC \
@@ -32,25 +50,25 @@ ENV JAVA_TOOL_OPTIONS="\
     -Xlog:gc*,safepoint:file=/data/gclogs/gc.log:time,level,tags:filecount=3,filesize=10M \
     "
 
-# Remote debugging on port 5005
+# Remote debugging, port 5005
 ENV JAVA_TOOL_OPTIONS="${JAVA_TOOL_OPTIONS} -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005"
 
 EXPOSE 8080 5005
 
 ENV JAVA_OPTS=""
 
-# Set timezone
+# Time zone
 ENV TZ=PRC
 RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 
-# tini forwards signals, cleans up zombie processes, allows graceful shutdown
+# tini forwards signals, cleans up zombies, allows graceful shutdown
 # sh -c: use shell to expand environment variables
 # ENTRYPOINT ["/usr/bin/tini","--","sh","-c"]
-# exec: replaces the shell with the current process, used with sh -c
+# exec: replace shell with current process, works with sh -c
 # JAVA_OPTS and default JAVA_TOOL_OPTIONS both take effect
-# No need for a PARAMS variable; append directly to the entrypoint
+# PARAMS variable unnecessary, just append directly to entrypoint
 # CMD ["exec java -jar $JAVA_OPTS /app/xxl-job-admin.jar"]
 
-# If the JAVA_OPTS variable is not needed, you can simply:
+# If JAVA_OPTS variable is not needed, you can simply:
 ENTRYPOINT ["/usr/bin/tini","--"]
 CMD ["java", "-jar", "/app/xxl-job-admin.jar"]

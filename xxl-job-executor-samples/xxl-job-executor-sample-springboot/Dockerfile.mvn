@@ -1,3 +1,20 @@
+# ========= Build Stage: Temurin JDK + Maven =========
+FROM eclipse-temurin:17-jdk-jammy AS build
+
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive \
+    apt-get install -y --no-install-recommends git maven ca-certificates && \
+    rm -rf /var/lib/apt/lists/*
+
+WORKDIR /src
+
+COPY . .
+
+# Build only the executor module
+# Currently, there are dependency issues; full build is required
+# RUN mvn -B -DskipTests -pl xxl-job-executor-sample-springboot -am package
+RUN mvn -B -DskipTests -am package
+
+
 # ========= Runtime Stage: Minimal JRE + tini + Python3 =========
 FROM eclipse-temurin:17-jre-jammy
 
@@ -9,10 +26,10 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive \
 
 WORKDIR /app
 
-# Copy executable JAR (modify according to your actual build artifact name)
-COPY xxl-job-executor-samples/xxl-job-executor-sample-springboot/target/*.jar /app/xxl-job-executor.jar
+# Copy executable JAR (modify according to your actual build output)
+COPY --from=build /src/xxl-job-executor-samples/xxl-job-executor-sample-springboot/target/*.jar /app/xxl-job-executor.jar
 
-# Application logs and GC logs
+# Logs and GC logs
 RUN mkdir -p /data/applogs /data/gclogs && chmod -R 777 /data
 
 # JVM tuning for low-resource environments (G1 + heap percentage + C1 JIT + OOM exit + GC logs)
@@ -37,7 +54,7 @@ RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 # Expose ports: executor port + debug port
 EXPOSE 9999 5005
 
-# Health check: consider healthy when port is open (you can also switch to /actuator/health)
+# Health check: port open = healthy (you can switch to /actuator/health if desired)
 # HEALTHCHECK --interval=20s --timeout=5s --start-period=20s --retries=5 \
 #     CMD bash -lc "timeout 2 bash -lc 'echo > /dev/tcp/127.0.0.1/${XXL_JOB_EXECUTOR_PORT}' || exit 1"
 

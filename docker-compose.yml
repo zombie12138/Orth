@@ -1,0 +1,157 @@
+version: "3.9"
+
+networks:
+  xxl-net:
+    driver: bridge
+
+# ynl anchor, alias
+x-logging: &rolling-logs
+  driver: "json-file"
+  options:
+    max-size: "${LOG_MAX_SIZE}"
+    max-file: "${LOG_MAX_FILE}"
+
+services:
+  xxl-job-admin:
+    pull_policy: build   # 只构建，不从 registry 拉取
+    build:
+      context: .
+      dockerfile: xxl-job-admin/Dockerfile
+      # args:
+        # Build argument
+        # APP_VERSION: "${ADMIN_VERSION}"
+    image: "${REGISTRY}${REPO_PREFIX}xxl-job-admin:${ADMIN_VERSION}"
+    container_name: xxl-job-admin
+    restart: unless-stopped
+    networks: [xxl-net]
+    ports:
+      - "${ADMIN_HTTP_PORT}:8080"
+      - "${ADMIN_DEBUG_PORT}:5005"
+    environment:
+      SPRING_DATASOURCE_URL: "jdbc:mysql://${MYSQL_HOST}:${MYSQL_PORT}/${MYSQL_DB}?useUnicode=true&characterEncoding=UTF-8&autoReconnect=true&serverTimezone=${TZ}"
+      SPRING_DATASOURCE_USERNAME: "${MYSQL_USER}"
+      SPRING_DATASOURCE_PASSWORD: "${MYSQL_PASSWORD}"
+      XXL_JOB_ACCESS_TOKEN: "${XXL_JOB_ACCESS_TOKEN}"
+      TZ: "${TZ}"
+    volumes:
+      - "${ADMIN_DATA_DIR}/applogs:/data/applogs"
+      - "${ADMIN_DATA_DIR}/gclogs:/data/gclogs"
+    logging: *rolling-logs
+    healthcheck:
+      test: ["CMD-SHELL", "bash -lc \"timeout 2 bash -lc 'echo > /dev/tcp/127.0.0.1/8080' || exit 1\""]
+      interval: 20s
+      timeout: 5s
+      start_period: 20s
+      retries: 5
+    labels:
+      # container labels
+      org.opencontainers.image.title: "xxl-job-admin"
+      org.opencontainers.image.version: "${ADMIN_VERSION}"
+      org.opencontainers.image.revision: "${GIT_SHA}"
+      org.opencontainers.image.created: "${BUILD_DATE}"
+    deploy:
+      resources:
+        limits:
+          memory: 200m
+          cpus: "3.0"
+        reservations:
+          memory: 200m
+          cpus: "0.5"
+    security_opt:
+      - no-new-privileges:true
+
+  xxl-job-worker-1:
+    pull_policy: build   # 只构建，不从 registry 拉取
+    build:
+      context: .
+      dockerfile: xxl-job-executor-samples/xxl-job-executor-sample-springboot/Dockerfile
+      # args:
+      #   APP_VERSION: "${WORKER_VERSION}"
+    image: "${REGISTRY}${REPO_PREFIX}xxl-job-worker:${WORKER_VERSION}"
+    container_name: xxl-job-worker-1
+    restart: unless-stopped
+    networks: [xxl-net]
+    # 9999 port;
+    # only expose jvm debug port
+    ports:
+      - "${WORKER1_DEBUG_PORT}:5005"
+    environment:
+      TZ: "${TZ}"
+      XXL_JOB_ADMIN_ADDRESSES: "http://xxl-job-admin:8080/xxl-job-admin"
+      XXL_JOB_ACCESS_TOKEN: "${XXL_JOB_ACCESS_TOKEN}"
+      XXL_JOB_EXECUTOR_APPNAME: "${WORKER1_APPNAME}"
+      XXL_JOB_EXECUTOR_PORT: "${WORKER_EXECUTOR_PORT}"
+      XXL_JOB_EXECUTOR_LOGPATH: "/data/applogs/xxl-job/jobhandler"
+      XXL_JOB_EXECUTOR_LOGRETENTIONDAYS: "7"
+    volumes:
+      - "${WORKER1_DATA_DIR}/applogs:/data/applogs"
+      - "${WORKER1_DATA_DIR}/gclogs:/data/gclogs"
+    logging: *rolling-logs
+    healthcheck:
+      test: ["CMD-SHELL", "bash -lc \"timeout 2 bash -lc 'echo > /dev/tcp/127.0.0.1/${XXL_JOB_EXECUTOR_PORT:-9999}' || exit 1\""]
+      interval: 20s
+      timeout: 5s
+      start_period: 20s
+      retries: 5
+    labels:
+      org.opencontainers.image.title: "xxl-job-worker"       
+      org.opencontainers.image.version: "${WORKER_VERSION}"
+      org.opencontainers.image.revision: "${GIT_SHA}"
+      org.opencontainers.image.created: "${BUILD_DATE}"
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+          cpus: "3.0"
+        reservations:
+          memory: 256m
+          cpus: "0.5"
+    security_opt:
+      - no-new-privileges:true
+
+  xxl-job-worker-2:
+    pull_policy: build   # 只构建，不从 registry 拉取
+    build:
+      context: .
+      dockerfile: xxl-job-executor-samples/xxl-job-executor-sample-springboot/Dockerfile
+      # args:
+      #   APP_VERSION: "${WORKER_VERSION}"
+    image: "${REGISTRY}${REPO_PREFIX}xxl-job-worker:${WORKER_VERSION}"
+    container_name: xxl-job-worker-2
+    restart: unless-stopped
+    networks: [xxl-net]
+    ports:
+      - "${WORKER2_DEBUG_PORT}:5005"
+    environment:
+      TZ: "${TZ}"
+      XXL_JOB_ADMIN_ADDRESSES: "http://xxl-job-admin:8080/xxl-job-admin"
+      XXL_JOB_ACCESS_TOKEN: "${XXL_JOB_ACCESS_TOKEN}"
+      XXL_JOB_EXECUTOR_APPNAME: "${WORKER2_APPNAME}"
+      XXL_JOB_EXECUTOR_PORT: "${WORKER_EXECUTOR_PORT}"
+      XXL_JOB_EXECUTOR_LOGPATH: "/data/applogs/xxl-job/jobhandler"
+      XXL_JOB_EXECUTOR_LOGRETENTIONDAYS: "7"
+    volumes:
+      - "${WORKER2_DATA_DIR}/applogs:/data/applogs"
+      - "${WORKER2_DATA_DIR}/gclogs:/data/gclogs"
+    logging: *rolling-logs
+    healthcheck:
+      test: ["CMD-SHELL", "bash -lc \"timeout 2 bash -lc 'echo > /dev/tcp/127.0.0.1/${XXL_JOB_EXECUTOR_PORT:-9999}' || exit 1\""]
+      interval: 20s
+      timeout: 5s
+      start_period: 20s
+      retries: 5
+    labels:
+      org.opencontainers.image.title: "xxl-job-worker"
+      org.opencontainers.image.version: "${WORKER_VERSION}"
+      org.opencontainers.image.revision: "${GIT_SHA}"
+      org.opencontainers.image.created: "${BUILD_DATE}"
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+          cpus: "3.0"
+        reservations:
+          memory: 256m
+          cpus: "0.5"
+    security_opt:
+      - no-new-privileges:true
