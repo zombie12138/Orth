@@ -31,7 +31,7 @@ services:
       SPRING_DATASOURCE_URL: "jdbc:mysql://${MYSQL_HOST}:${MYSQL_PORT}/${MYSQL_DB}?useUnicode=true&characterEncoding=UTF-8&autoReconnect=true&serverTimezone=${TZ}"
       SPRING_DATASOURCE_USERNAME: "${MYSQL_USER}"
       SPRING_DATASOURCE_PASSWORD: "${MYSQL_PASSWORD}"
-      XXL_JOB_ACCESS_TOKEN: "${XXL_JOB_ACCESS_TOKEN}"
+      XXL_JOB_ACCESSTOKEN: "${XXL_JOB_ACCESS_TOKEN}"
       TZ: "${TZ}"
     volumes:
       - "${ADMIN_DATA_DIR}/applogs:/data/applogs"
@@ -78,7 +78,7 @@ services:
     environment:
       TZ: "${TZ}"
       XXL_JOB_ADMIN_ADDRESSES: "http://xxl-job-admin:8080/xxl-job-admin"
-      XXL_JOB_ACCESS_TOKEN: "${XXL_JOB_ACCESS_TOKEN}"
+      XXL_JOB_ADMIN_ACCESSTOKEN: "${XXL_JOB_ACCESS_TOKEN}"
       XXL_JOB_EXECUTOR_APPNAME: "${WORKER1_APPNAME}"
       XXL_JOB_EXECUTOR_PORT: "${WORKER_EXECUTOR_PORT}"
       XXL_JOB_EXECUTOR_LOGPATH: "/data/applogs/xxl-job/jobhandler"
@@ -125,7 +125,7 @@ services:
     environment:
       TZ: "${TZ}"
       XXL_JOB_ADMIN_ADDRESSES: "http://xxl-job-admin:8080/xxl-job-admin"
-      XXL_JOB_ACCESS_TOKEN: "${XXL_JOB_ACCESS_TOKEN}"
+      XXL_JOB_ADMIN_ACCESSTOKEN: "${XXL_JOB_ACCESS_TOKEN}"
       XXL_JOB_EXECUTOR_APPNAME: "${WORKER2_APPNAME}"
       XXL_JOB_EXECUTOR_PORT: "${WORKER_EXECUTOR_PORT}"
       XXL_JOB_EXECUTOR_LOGPATH: "/data/applogs/xxl-job/jobhandler"
